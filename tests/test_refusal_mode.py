@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from .test_guard import invoke, make_record
+from .test_guard import invoke, invoke_moa, make_record
 
 
 def _text(resp):
@@ -38,17 +38,52 @@ def test_an_invalid_mode_refuses_with_a_visible_notice(guard):
     assert _text(out) != ""
 
 
-@pytest.mark.parametrize("mode", ["notice", "empty"])
-def test_both_modes_are_valid_settings(guard, mode):
+@pytest.mark.parametrize("mode,expected", [
+    ("notice", "notice"), ("empty", "empty"), (" Empty ", "empty"), ("NOTICE", "notice")])
+def test_both_modes_are_valid_settings(guard, mode, expected):
+    """Case and surrounding spaces are not a misconfiguration."""
     settings, ok = guard._read_settings(lambda k, d: mode if k == "refusal_mode" else d)
-    assert ok and settings["refusal_mode"] == mode
+    assert ok and settings["refusal_mode"] == expected
+
+
+@pytest.mark.parametrize("bad", ["", "silent", 1, None])
+def test_a_non_mode_value_is_a_config_error(guard, bad):
+    _, ok = guard._read_settings(lambda k, d: bad if k == "refusal_mode" else d)
+    assert ok is False
 
 
 def test_a_config_error_keeps_the_notice_even_in_empty_mode(guard):
     """Empty replies must not hide a misconfiguration behind a silent fallback."""
     out, calls = invoke(guard, make_record(10), refusal_mode="empty", threshold_percent="oops")
     assert calls == []
+    assert _text(out) == guard._NOTICE_CONFIG
+    assert "settings are invalid" in _text(out)
+
+
+def test_empty_mode_refuses_an_exhausted_moa_slot_with_an_empty_message(guard):
+    records = {"openai-codex": make_record(10), "anthropic": make_record(100)}
+    out, calls = invoke_moa(guard, records, ["openai-codex", "anthropic"], refusal_mode="empty")
+    assert calls == []
+    assert out.usage_guard_blocked is True
+    assert _text(out) == ""
+
+
+def test_notice_mode_keeps_the_moa_notice(guard):
+    records = {"openai-codex": make_record(10), "anthropic": make_record(100)}
+    out, calls = invoke_moa(guard, records, ["openai-codex", "anthropic"])
+    assert calls == []
     assert _text(out) != ""
+
+
+def test_an_unresolvable_moa_preset_keeps_its_notice_in_empty_mode(guard):
+    """An unresolvable preset is a configuration problem, so it stays visible."""
+    policy = dict(guard.DEFAULTS, refusal_mode="empty")
+    with patch.object(guard, "_moa_preset_slots", return_value=None):
+        out = guard.gate_llm_execution(
+            lambda key, default: policy.get(key, default),
+            provider="moa", model="default", api_mode="chat_completions",
+            request={}, next_call=lambda req: pytest.fail("dispatched"))
+    assert _text(out) == guard._NOTICE_MOA
 
 
 @pytest.mark.parametrize("api_mode", ["chat_completions", "anthropic_messages", "codex_responses"])

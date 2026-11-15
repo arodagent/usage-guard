@@ -4,7 +4,7 @@ All notable changes to this plugin. Versions follow [SemVer](https://semver.org)
 
 ## Unreleased
 
-- **`refusal_mode`** (`notice` default, or `empty`). A refusal is a synthetic assistant message, which Hermes treats as a finished answer, so a profile's `fallback_providers` is never tried. With `refusal_mode: empty` the refusal is an empty message instead: Hermes retries (refused again at zero cost) and then switches to the fallback provider. Configuration errors keep the explanatory notice. The default is unchanged.
+- **`refusal_mode`** (`notice` default, or `empty`). A refusal is a synthetic assistant message, which Hermes treats as a finished answer, so a profile's `fallback_providers` is never tried. With `refusal_mode: empty` the refusal is an empty message instead: Hermes retries (refused again at zero cost) and then switches to the fallback provider. Configuration errors keep the explanatory notice. The default is unchanged. The value is case-insensitive. Host-contract tests now pin the two Hermes behaviours the mode relies on (an empty refusal reads as a repeated empty; the empty-response ladder ends in the fallback chain). The reference documents the trade-offs: the reason is only in the log, a short retry wait on every refused turn, housekeeping turns end without falling back, and the fallback must be a different provider.
 
 ## 0.5.0 — 2026-11-06
 

@@ -979,6 +979,8 @@ def _read_settings(get_config: Callable[[str, Any], Any]) -> tuple[dict[str, Any
             settings["source_min_intervals"] = intervals
 
         refusal_mode = get_config("refusal_mode", DEFAULTS["refusal_mode"])
+        if isinstance(refusal_mode, str):
+            refusal_mode = refusal_mode.strip().lower()
         if refusal_mode not in REFUSAL_MODES:
             config_ok = False
             LOG.warning("usage-guard: setting %s is invalid (%r); guarded requests are refused until it is fixed in plugins.entries.usage-guard.settings", "refusal_mode", refusal_mode)
@@ -1796,7 +1798,7 @@ def gate_llm_execution(config_reader: Callable[[str, Any], Any], **kwargs: Any) 
         LOG.warning("usage-guard refused provider=%s model=%s: %s%s",
                     provider, kwargs.get("model"), decision.reason, _reading_evidence(source_key))
         return _blocked_response(kwargs.get("api_mode"), kwargs.get("model"),
-                                     _refusal_text(settings, config_ok, decision.notice))
+                                 _refusal_text(settings, config_ok, decision.notice))
     except Exception:
         if dispatched:
             # Preserve provider errors/interruption and normal retry semantics.
